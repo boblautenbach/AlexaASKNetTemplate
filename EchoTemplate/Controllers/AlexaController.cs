@@ -243,65 +243,58 @@ namespace EchoTemplate.Controllers
                 if (isValid == false)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
-                string cacheKey = string.Concat(CacheKey, "SignatureCertChain");
-                var certificate = HttpRuntime.Cache.Get(cacheKey) as byte[];
-                if (certificate == null)
+                //download certificate, cache and compare to signature
+                using (var web = new WebClient())
                 {
-                    isValid = false;
+                    certificate = web.DownloadData(certUrl);
 
-                    //download certificate, cache and compare to signature
-                    using (var web = new WebClient())
+                    var cert = new X509Certificate2(certificate);
+                    var effectiveDate = DateTime.MinValue;
+                    var expiryDate = DateTime.MinValue;
+
+                    //Verify that the signing certificate has not expired (examine both the Not Before and Not After dates)
+                    if ((DateTime.TryParse(cert.GetExpirationDateString(), out expiryDate)
+                        && expiryDate > DateTime.UtcNow)
+                        && (DateTime.TryParse(cert.GetEffectiveDateString(), out effectiveDate)
+                        && effectiveDate < DateTime.UtcNow))
                     {
-                        certificate = web.DownloadData(certUrl);
+                        var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
+                        var hasIssuer = cert.Issuer.Contains("CN=VeriSign Class 3 Secure Server CA");
+                        //cert.Issuer.Contains("VeriSign Trust Network");
+                        //Issuer: CN=VeriSign Class 3 Secure Server CA - G3, OU=Terms of use at https://www.verisign.com/rpa (c)10, 
+                        //OU =VeriSign Trust Network, O="VeriSign, Inc.", C=US
+                        //Subject: CN = echo - api.amazon.com, O = "Amazon.com, Inc.", L = Seattle, S = Washington, C = US
 
-                        var cert = new X509Certificate2(certificate);
-                        var effectiveDate = DateTime.MinValue;
-                        var expiryDate = DateTime.MinValue;
+                        isValid = hasSubject && hasIssuer;
 
-                        //Verify that the signing certificate has not expired (examine both the Not Before and Not After dates)
-                        if ((DateTime.TryParse(cert.GetExpirationDateString(), out expiryDate)
-                            && expiryDate > DateTime.UtcNow)
-                            && (DateTime.TryParse(cert.GetEffectiveDateString(), out effectiveDate)
-                            && effectiveDate < DateTime.UtcNow))
+                        if (isValid)
                         {
-                            var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
-                            var hasIssuer = cert.Issuer.Contains("CN=VeriSign Class 3 Secure Server CA");
-                            //cert.Issuer.Contains("VeriSign Trust Network");
-                            //Issuer: CN=VeriSign Class 3 Secure Server CA - G3, OU=Terms of use at https://www.verisign.com/rpa (c)10, 
-                            //OU =VeriSign Trust Network, O="VeriSign, Inc.", C=US
-                            //Subject: CN = echo - api.amazon.com, O = "Amazon.com, Inc.", L = Seattle, S = Washington, C = US
+                            //Base64 decode the Signature header value on the request to obtain the encrypted signature.
+                            var signatureString = request.Headers.GetValues("Signature").First();
+                            byte[] signature = Convert.FromBase64String(signatureString);
 
-                            isValid = hasSubject && hasIssuer;
-
-                            if (isValid)
+                            using (var sha1 = new SHA1Managed())
                             {
-                                //Base64 decode the Signature header value on the request to obtain the encrypted signature.
-                                var signatureString = request.Headers.GetValues("Signature").First();
-                                byte[] signature = Convert.FromBase64String(signatureString);
-
-                                using (var sha1 = new SHA1Managed())
+                                var data = sha1.ComputeHash(Encoding.UTF8.GetBytes(body));
+                                var rsa = (RSACryptoServiceProvider)cert.PublicKey.Key;
+                                if (rsa != null)
                                 {
-                                    var data = sha1.ComputeHash(Encoding.UTF8.GetBytes(body));
-                                    var rsa = (RSACryptoServiceProvider)cert.PublicKey.Key;
-                                    if (rsa != null)
-                                    {
-                                        //Compare the asserted hash value and derived hash values to ensure that they match.
-                                        isValid = rsa.VerifyHash(data, CryptoConfig.MapNameToOID("SHA1"), signature);
-                                    }
+                                    //Compare the asserted hash value and derived hash values to ensure that they match.
+                                    isValid = rsa.VerifyHash(data, CryptoConfig.MapNameToOID("SHA1"), signature);
                                 }
+                            }
 
-                                if (isValid == false)
-                                    throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-                            }
-                            else
-                            {
+                            if (isValid == false)
                                 throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-                            }
                         }
                         else
                         {
                             throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                         }
+                    }
+                    else
+                    {
+                        throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                     }
                 }
             }
