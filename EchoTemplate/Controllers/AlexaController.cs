@@ -225,11 +225,7 @@ namespace EchoTemplate.Controllers
     #region :   Cert-Handler   :
     public class CertificateValidationHandler : DelegatingHandler
     {
-        private const short CacheMinutes = 30;
-        private const string CacheKey = "EchoTemplate.Controllers";
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request, CancellationToken cancellationToken)
+        protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = await request.Content.ReadAsStringAsync();
 
@@ -269,7 +265,7 @@ namespace EchoTemplate.Controllers
                             && effectiveDate < DateTime.UtcNow))
                         {
                             var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
-                            var hasIssuer = cert.Issuer.Contains("CN=Symantec Class 3 Secure Server CA");
+                            var hasIssuer = cert.Issuer.Contains("CN=VeriSign Class 3 Secure Server CA");
                             //cert.Issuer.Contains("VeriSign Trust Network");
                             //Issuer: CN=VeriSign Class 3 Secure Server CA - G3, OU=Terms of use at https://www.verisign.com/rpa (c)10, 
                             //OU =VeriSign Trust Network, O="VeriSign, Inc.", C=US
@@ -306,11 +302,6 @@ namespace EchoTemplate.Controllers
                         {
                             throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                         }
-                    }
-
-                    if (isValid && certificate != null)
-                    {
-                        HttpRuntime.Cache.Insert(cacheKey, certificate, null, DateTime.Now.AddMinutes(CacheMinutes), TimeSpan.Zero);
                     }
                 }
             }
