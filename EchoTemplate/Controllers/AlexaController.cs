@@ -21,8 +21,6 @@ namespace EchoTemplate.Controllers
         #region :   Fields   :
         private const double TimeStampTolerance = 150;
         private const string AppId = "<App_ID>";
-        private const short CacheMinutes = 30;
-        private const string CacheKey = "EchoTemplate.Controllers";
         #endregion
 
 
