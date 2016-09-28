@@ -2,7 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Web.Http;
-using EchoTemplate.Controllers
+using EchoTemplate.Controllers;
 
 namespace EchoTemplate
 {
