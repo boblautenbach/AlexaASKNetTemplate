@@ -55,8 +55,6 @@ namespace EWCAlexa.Model
 
         public Outputspeech OutputSpeech { get; set; }
 
-        public bool isBooked { get; set; }
-
         public SkillAttributes()
         {
             LastRequestIntent = "";
