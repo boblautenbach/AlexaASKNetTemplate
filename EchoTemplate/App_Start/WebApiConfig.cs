@@ -19,7 +19,6 @@ namespace EchoTemplate
                 name: "DefaultApi",
                 routeTemplate: "api/{controller}/{id}",
                 defaults: new { id = RouteParameter.Optional }
-                //handler: new CertificateValidationHandler()  // per-route message handler
             );
 
             config.MessageHandlers.Add(new CertificateValidationHandler());
