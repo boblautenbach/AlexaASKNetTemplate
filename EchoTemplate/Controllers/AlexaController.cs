@@ -223,12 +223,13 @@ namespace EchoTemplate.Controllers
     }
 
     #region :   Cert-Handler   :
+    
     public class CertificateValidationHandler : DelegatingHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = await request.Content.ReadAsStringAsync();
-
+            
             //validate certificate
             var isValid = false;
             if (request.Headers.Contains("Signature") && request.Headers.Contains("SignatureCertChainUrl"))
@@ -240,8 +241,11 @@ namespace EchoTemplate.Controllers
                     && certUrl.Host.Equals("s3.amazonaws.com", StringComparison.OrdinalIgnoreCase)
                     && certUrl.AbsolutePath.StartsWith("/echo.api/"));
 
+                //TODO: Figure out whats wrong with the signature URL
                 if (isValid == false)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+                byte[] certificate = null;
 
                 //download certificate, cache and compare to signature
                 using (var web = new WebClient())
@@ -260,10 +264,6 @@ namespace EchoTemplate.Controllers
                     {
                         var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
                         var hasIssuer = cert.Issuer.Contains("CN=VeriSign Class 3 Secure Server CA");
-                        //cert.Issuer.Contains("VeriSign Trust Network");
-                        //Issuer: CN=VeriSign Class 3 Secure Server CA - G3, OU=Terms of use at https://www.verisign.com/rpa (c)10, 
-                        //OU =VeriSign Trust Network, O="VeriSign, Inc.", C=US
-                        //Subject: CN = echo - api.amazon.com, O = "Amazon.com, Inc.", L = Seattle, S = Washington, C = US
 
                         isValid = hasSubject && hasIssuer;
 
@@ -294,6 +294,7 @@ namespace EchoTemplate.Controllers
                     }
                     else
                     {
+                        //TODO: Figure out why hasSubject && hasIssuer is invalid
                         throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                     }
                 }
@@ -306,6 +307,5 @@ namespace EchoTemplate.Controllers
             return await base.SendAsync(request, cancellationToken);
         }
     }
-
     #endregion:  Cert-Handler   :
 }
