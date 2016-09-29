@@ -23,20 +23,19 @@ namespace EchoTemplate.Controllers
         private const string AppId = "<App_ID>";
         #endregion
 
-
         public AlexaController()
         {
         }
 
         #region :   Main-End-Points   :
         [HttpPost, Route("main")]
-        public  async Task<AlexaResponse> Main(AlexaRequest alexaRequest)
+        public async Task<AlexaResponse> Main(AlexaRequest alexaRequest)
         {
             AlexaResponse alexaResponse = null;
 
             //check timestamp
             var totalSeconds = (DateTime.UtcNow - alexaRequest.Request.Timestamp).TotalSeconds;
-            if (totalSeconds <= 0 || totalSeconds >= TimeStampTolerance)
+            if (totalSeconds >= TimeStampTolerance)
                 throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
             if (alexaRequest.Session.Application.ApplicationId != AppId)
@@ -217,30 +216,31 @@ namespace EchoTemplate.Controllers
         }
 
         #endregion :   Alexa Type Handlers   :
-        
+
     }
 
     #region :   Cert-Handler   :
-    
+
     public class CertificateValidationHandler : DelegatingHandler
     {
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
             var body = await request.Content.ReadAsStringAsync();
-            
+
             //validate certificate
             var isValid = false;
+
             if (request.Headers.Contains("Signature") && request.Headers.Contains("SignatureCertChainUrl"))
             {
                 //check signature url (https://s3.amazonaws.com/echo.api/echo-api-cert.pem)
+
                 var certUrl = new Uri(request.Headers.GetValues("SignatureCertChainUrl").First().Replace("/../", "/"));
                 isValid = ((certUrl.Port == 443 || certUrl.IsDefaultPort)
                     && certUrl.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)
                     && certUrl.Host.Equals("s3.amazonaws.com", StringComparison.OrdinalIgnoreCase)
                     && certUrl.AbsolutePath.StartsWith("/echo.api/"));
 
-                //TODO: Figure out whats wrong with the signature URL
-                if (isValid == false)
+                if (!isValid)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
                 byte[] certificate = null;
@@ -253,57 +253,38 @@ namespace EchoTemplate.Controllers
                     var cert = new X509Certificate2(certificate);
                     var effectiveDate = DateTime.MinValue;
                     var expiryDate = DateTime.MinValue;
+                    var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
 
                     //Verify that the signing certificate has not expired (examine both the Not Before and Not After dates)
                     if ((DateTime.TryParse(cert.GetExpirationDateString(), out expiryDate)
                         && expiryDate > DateTime.UtcNow)
+                        && hasSubject
                         && (DateTime.TryParse(cert.GetEffectiveDateString(), out effectiveDate)
                         && effectiveDate < DateTime.UtcNow))
                     {
-                        var hasSubject = cert.Subject.Contains("CN=echo-api.amazon.com");
-                        var hasIssuer = cert.Issuer.Contains("CN=VeriSign Class 3 Secure Server CA");
+                        //Base64 decode the Signature header value on the request to obtain the encrypted signature.
+                        var signatureString = request.Headers.GetValues("Signature").First();
+                        byte[] signature = Convert.FromBase64String(signatureString);
 
-                        isValid = hasSubject && hasIssuer;
-
-                        if (isValid)
+                        using (var sha1 = new SHA1Managed())
                         {
-                            //Base64 decode the Signature header value on the request to obtain the encrypted signature.
-                            var signatureString = request.Headers.GetValues("Signature").First();
-                            byte[] signature = Convert.FromBase64String(signatureString);
-
-                            using (var sha1 = new SHA1Managed())
+                            var data = sha1.ComputeHash(Encoding.UTF8.GetBytes(body));
+                            var rsa = (RSACryptoServiceProvider)cert.PublicKey.Key;
+                            if (rsa != null)
                             {
-                                var data = sha1.ComputeHash(Encoding.UTF8.GetBytes(body));
-                                var rsa = (RSACryptoServiceProvider)cert.PublicKey.Key;
-                                if (rsa != null)
-                                {
-                                    //Compare the asserted hash value and derived hash values to ensure that they match.
-                                    isValid = rsa.VerifyHash(data, CryptoConfig.MapNameToOID("SHA1"), signature);
-                                }
+                                //Compare the asserted hash value and derived hash values to ensure that they match.
+                                isValid = rsa.VerifyHash(data, CryptoConfig.MapNameToOID("SHA1"), signature);
                             }
-
-                            if (isValid == false)
-                                throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                         }
-                        else
-                        {
-                            throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-                        }
-                    }
-                    else
-                    {
-                        //TODO: Figure out why hasSubject && hasIssuer is invalid
-                        throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
                     }
                 }
             }
-            else
-            {
+
+            if (!isValid)
                 throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-            }
 
             return await base.SendAsync(request, cancellationToken);
         }
+        #endregion:  Cert-Handler   :
     }
-    #endregion:  Cert-Handler   :
 }
