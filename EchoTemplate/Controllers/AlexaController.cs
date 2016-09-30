@@ -54,6 +54,8 @@ namespace EchoTemplate.Controllers
                     break;
             }
 
+            //set value for repeat intent
+            alexaResponse.SessionAttributes.SkillAttributes.OutputSpeech = alexaResponse.Response.OutputSpeech;
             return alexaResponse;
         }
 
@@ -136,13 +138,12 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private  AlexaResponse ProcessRepeatIntent(AlexaRequest request)
+        private AlexaResponse ProcessRepeatIntent(AlexaRequest request)
         {
             var response = new AlexaResponse();
 
             response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
-
-            response.Response.OutputSpeech = request.Session.Attributes.SkillAttributes.OutputSpeech = request.Session.Attributes.SkillAttributes.OutputSpeech;
+            response.Response.OutputSpeech = request.Session.Attributes.SkillAttributes.OutputSpeech;
             return response;
         }
 

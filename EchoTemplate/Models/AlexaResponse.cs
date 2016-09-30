@@ -63,7 +63,7 @@ namespace EWCAlexa.Model
         [JsonProperty("card")]
         public Card Card { get; set; }
 
-        [JsonProperty("repromt")]
+        [JsonProperty("reprompt")]
         public Reprompt Reprompt { get; set; }
 
         [JsonProperty("shouldEndSession")]
