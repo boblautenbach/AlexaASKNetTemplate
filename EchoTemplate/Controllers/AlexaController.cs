@@ -60,7 +60,7 @@ namespace EchoTemplate.Controllers
         #endregion :   Main-End-Points   :
 
         #region :   Alexa Type Handlers   :
-        private static AlexaResponse LaunchRequest(AlexaRequest request)
+        private AlexaResponse LaunchRequest(AlexaRequest request)
         {
             var utterance = "";
 
@@ -75,7 +75,7 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private static AlexaResponse ProcessHelpIntent(AlexaRequest request)
+        private  AlexaResponse ProcessHelpIntent(AlexaRequest request)
         {
             var utterance = "";
 
@@ -89,12 +89,12 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private static AlexaResponse ProcessCancelIntent()
+        private AlexaResponse ProcessCancelIntent()
         {
             return new AlexaResponse("Goodbye and have a great day!", true);
         }
 
-        private static async Task<AlexaResponse> IntentRequest(AlexaRequest request)
+        private async Task<AlexaResponse> IntentRequest(AlexaRequest request)
         {
             var response = new AlexaResponse();
 
@@ -136,7 +136,7 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private static AlexaResponse ProcessRepeatIntent(AlexaRequest request)
+        private  AlexaResponse ProcessRepeatIntent(AlexaRequest request)
         {
             var response = new AlexaResponse();
 
@@ -147,7 +147,7 @@ namespace EchoTemplate.Controllers
         }
 
 
-        private static AlexaResponse ProcessUnknownIntent(AlexaRequest request)
+        private AlexaResponse ProcessUnknownIntent(AlexaRequest request)
         {
             var response = new AlexaResponse
             {
@@ -163,7 +163,7 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private static AlexaResponse ProcessYesIntent(AlexaRequest request)
+        private AlexaResponse ProcessYesIntent(AlexaRequest request)
         {
             var response = new AlexaResponse();
             response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
@@ -178,7 +178,7 @@ namespace EchoTemplate.Controllers
         }
 
 
-        private static AlexaResponse ProcessNoIntent(AlexaRequest request)
+        private AlexaResponse ProcessNoIntent(AlexaRequest request)
         {
             var response = new AlexaResponse();
             string content = "";
@@ -195,7 +195,7 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private static AlexaResponse ProcessThanksIntent(AlexaRequest request)
+        private AlexaResponse ProcessThanksIntent(AlexaRequest request)
         {
             var response = new AlexaResponse();
             var content = "Have a great day!";
@@ -210,7 +210,7 @@ namespace EchoTemplate.Controllers
         }
 
 
-        private static AlexaResponse SessionEndedRequest()
+        private  AlexaResponse SessionEndedRequest()
         {
             return null;
         }
