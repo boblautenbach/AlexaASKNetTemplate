@@ -23,6 +23,32 @@ namespace EchoTemplate.Controllers
         private const string AppId = "<App_ID>";
         #endregion
 
+        #region : Helpers :
+
+        //use this within each method of controller to trap errors
+        private async Task<AlexaResponse> ThrowSafeException(Exception exception, string methodName)
+        {
+            var response = new AlexaResponse();
+
+            var content = @"We encountered some trouble, but don't worry, we have our team looking into it now.  We apologize for the
+                            inconvenience, we should have this fixed shortly. Please try again later.";
+
+            response.Response.OutputSpeech.Text = content;
+            response.Response.ShouldEndSession = true;
+
+            try
+            {
+                //perhaps log to loggly or email to developer/support with user request info
+            }
+            catch (Exception ex)
+            {
+                //TODO
+            }
+
+            return response;
+        }
+
+        #endregion : Helpers :
         public AlexaController()
         {
         }
@@ -33,29 +59,37 @@ namespace EchoTemplate.Controllers
         {
             AlexaResponse alexaResponse = null;
 
-            //check timestamp
-            var totalSeconds = (DateTime.UtcNow - alexaRequest.Request.Timestamp).TotalSeconds;
-            if (totalSeconds >= TimeStampTolerance)
-                throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-
-            if (alexaRequest.Session.Application.ApplicationId != AppId)
-                throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
-
-            switch (alexaRequest.Request.Type)
+            try
             {
-                case "LaunchRequest":
-                    alexaResponse = LaunchRequest(alexaRequest);
-                    break;
-                case "IntentRequest":
-                    alexaResponse = await IntentRequest(alexaRequest);
-                    break;
-                case "SessionEndedRequest":
-                    alexaResponse = SessionEndedRequest();
-                    break;
+                //check timestamp
+                var totalSeconds = (DateTime.UtcNow - alexaRequest.Request.Timestamp).TotalSeconds;
+                if (totalSeconds >= TimeStampTolerance)
+                    throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+                if (alexaRequest.Session.Application.ApplicationId != AppId)
+                    throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
+
+                switch (alexaRequest.Request.Type)
+                {
+                    case "LaunchRequest":
+                        alexaResponse = LaunchRequest(alexaRequest);
+                        break;
+                    case "IntentRequest":
+                        alexaResponse = await IntentRequest(alexaRequest);
+                        break;
+                    case "SessionEndedRequest":
+                        alexaResponse = SessionEndedRequest();
+                        break;
+                }
+
+                //set value for repeat intent
+                alexaResponse.SessionAttributes.SkillAttributes.OutputSpeech = alexaResponse.Response.OutputSpeech;
+            }
+            catch (Exception ex)
+            {
+                return await ThrowSafeException(ex, System.Reflection.MethodBase.GetCurrentMethod().Name);
             }
 
-            //set value for repeat intent
-            alexaResponse.SessionAttributes.SkillAttributes.OutputSpeech = alexaResponse.Response.OutputSpeech;
             return alexaResponse;
         }
 
