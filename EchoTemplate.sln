@@ -5,7 +5,7 @@ VisualStudioVersion = 14.0.25420.1
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoTemplate", "EchoTemplate\EchoTemplate.csproj", "{A4258123-A5FA-4676-923F-845988ED4FDB}"
 EndProject
-Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoASKTemplate", "..\EchoASKTemplate\EchoASKTemplate.csproj", "{974EFC55-19CD-4C66-ABA3-B46A91ECE918}"
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EchoASKTemplate", "EchoASKTemplate\EchoASKTemplate.csproj", "{974EFC55-19CD-4C66-ABA3-B46A91ECE918}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
