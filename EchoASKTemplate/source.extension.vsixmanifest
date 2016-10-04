@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <PackageManifest Version="2.0.0" xmlns="http://schemas.microsoft.com/developer/vsx-schema/2011" xmlns:d="http://schemas.microsoft.com/developer/vsx-schema-design/2011">
   <Metadata>
-    <Identity Id="EchoASKTemplate.Bob Lautenbach.2ce2e80f-e0f1-4c1a-b5d4-35d4d01d39a8" Version="1.4" Language="en-US" Publisher="Bob Lautenbach" />
+    <Identity Id="EchoASKTemplate.Bob Lautenbach.2ce2e80f-e0f1-4c1a-b5d4-35d4d01d39a8" Version="1.5" Language="en-US" Publisher="Bob Lautenbach" />
     <DisplayName>EchoASKTemplate</DisplayName>
     <Description xml:space="preserve">Amazom Echo ASK C# Template for hosting a Skill in Azure</Description>
     <Icon>Amazon-Echo.jpg</Icon>
@@ -14,6 +14,6 @@
     <Dependency Id="Microsoft.Framework.NDP" DisplayName="Microsoft .NET Framework" d:Source="Manual" Version="[4.5,)" />
   </Dependencies>
   <Assets>
-    <Asset Type="Microsoft.VisualStudio.ProjectTemplate" d:Source="Project" d:ProjectName="%CurrentProject%" d:TargetPath="|%CurrentProject%;TemplateProjectOutputGroup|" Path="ProjectTemplates" d:VsixSubPath="ProjectTemplates" />
+    <Asset Type="Microsoft.VisualStudio.ProjectTemplate" d:Source="File" Path="ProjectTemplates" d:TargetPath="ProjectTemplates\EchoTemplate.zip" />
   </Assets>
 </PackageManifest>
