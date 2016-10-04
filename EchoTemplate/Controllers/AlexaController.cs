@@ -57,7 +57,7 @@ namespace EchoTemplate.Controllers
         [HttpPost, Route("main")]
         public async Task<AlexaResponse> Main(AlexaRequest alexaRequest)
         {
-            AlexaResponse alexaResponse = null;
+            AlexaResponse alexaResponse = new AlexaResponse();
 
             try
             {
@@ -69,16 +69,19 @@ namespace EchoTemplate.Controllers
                 if (alexaRequest.Session.Application.ApplicationId != AppId)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
+
+                alexaResponse.SessionAttributes.SkillAttributes = alexaRequest.Session.Attributes.SkillAttributes;
+
                 switch (alexaRequest.Request.Type)
                 {
                     case "LaunchRequest":
-                        alexaResponse = LaunchRequest(alexaRequest);
+                        alexaResponse = LaunchRequest(alexaRequest, alexaResponse);
                         break;
                     case "IntentRequest":
-                        alexaResponse = await IntentRequest(alexaRequest);
+                        alexaResponse = await IntentRequest(alexaRequest, alexaResponse);
                         break;
                     case "SessionEndedRequest":
-                        alexaResponse = SessionEndedRequest();
+                        alexaResponse = SessionEndedRequest(alexaRequest, alexaResponse);
                         break;
                 }
 
@@ -96,129 +99,115 @@ namespace EchoTemplate.Controllers
         #endregion :   Main-End-Points   :
 
         #region :   Alexa Type Handlers   :
-        private AlexaResponse LaunchRequest(AlexaRequest request)
+        private AlexaResponse LaunchRequest(AlexaRequest request, AlexaResponse response)
         {
-            var utterance = "";
+            var content = "";
 
             var reprompt = "";
 
-            var response = new AlexaResponse();
-            response.Response.OutputSpeech.Text = utterance;
+            response.Response.OutputSpeech.Text = content;
             response.Response.ShouldEndSession = false;
             response.Response.Reprompt.OutputSpeech.Text = reprompt;
-            response.Response.Card = null;
 
             return response;
         }
 
-        private  AlexaResponse ProcessHelpIntent(AlexaRequest request)
+        private  AlexaResponse ProcessHelpIntent(AlexaRequest request, AlexaResponse response)
         {
-            var utterance = "";
+            var content = "";
 
-            var cardContent = utterance;
+            var cardContent = content;
 
-            var response = new AlexaResponse();
-
-            response.Response.OutputSpeech.Text = utterance;
+            response.Response.OutputSpeech.Text = content;
             response.Response.Reprompt.OutputSpeech.Text = "Have a great day!";
 
             return response;
         }
 
-        private AlexaResponse ProcessCancelIntent()
+        private AlexaResponse ProcessCancelIntent(AlexaRequest request, AlexaResponse response)
         {
-            return new AlexaResponse("Goodbye and have a great day!", true);
+            response.Response.OutputSpeech.Text = "Goodbye gorgeous!. Go Strut your stuff!";
+            response.Response.ShouldEndSession = true;
+            return response;
         }
 
-        private async Task<AlexaResponse> IntentRequest(AlexaRequest request)
+        private async Task<AlexaResponse> IntentRequest(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse();
-
+            bool shouldSetLastIntent = true;
 
             switch (request.Request.Intent.Name)
             {
                 case "AMAZON.RepeatIntent":
-                    response = ProcessRepeatIntent(request);
+                    response = ProcessRepeatIntent(request, response);
+                    shouldSetLastIntent = false;
                     break;
                 case "ThanksIntent":
-                    response = ProcessThanksIntent(request);
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "ThanksIntent";
+                    response = ProcessThanksIntent(request, response);
                     break;
                 case "AMAZON.NoIntent":
-                    response = ProcessNoIntent(request);
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "NoIntent";
+                    response = ProcessNoIntent(request, response);
+                    shouldSetLastIntent = false;
                     break;
                 case "AMAZON.YesIntent":
-                    response = ProcessYesIntent(request);
+                    response = ProcessYesIntent(request, response);
+                    shouldSetLastIntent = false;
                     break;
                 case "UnknownIntent":
-                    response = ProcessUnknownIntent(request);
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "UnknownIntent";
+                    response = ProcessUnknownIntent(request,response);
                     break;
                 case "AMAZON.CancelIntent":
-                    response = ProcessCancelIntent();
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "CancelIntent";
+                    response = ProcessCancelIntent(request, response);
                     break;
                 case "AMAZON.StopIntent":
-                    response = ProcessCancelIntent();
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "StopIntent";
+                    response = ProcessCancelIntent(request, response);
                     break;
                 case "AMAZON.HelpIntent":
-                    response = ProcessHelpIntent(request);
-                    response.SessionAttributes.SkillAttributes.LastRequestIntent = "HelpIntent";
+                    response = ProcessHelpIntent(request, response);
                     break;
+            }
+
+            if (shouldSetLastIntent)
+            {
+                response.SessionAttributes.SkillAttributes.LastRequestIntent = request.Request.Intent.Name;
             }
 
             return response;
         }
 
-        private AlexaResponse ProcessRepeatIntent(AlexaRequest request)
+        private AlexaResponse ProcessRepeatIntent(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse();
 
-            response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
             response.Response.OutputSpeech = request.Session.Attributes.SkillAttributes.OutputSpeech;
             return response;
         }
 
 
-        private AlexaResponse ProcessUnknownIntent(AlexaRequest request)
+        private AlexaResponse ProcessUnknownIntent(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse
+            if (string.IsNullOrEmpty(request.Session.Attributes.SkillAttributes.LastRequestIntent))
             {
-                Response =
-                {
-                    ShouldEndSession = false,
-                    OutputSpeech = { Text = "I'm sorry, I didn't get that. Can you please repeat that." }
-                }
-            };
-            response.Response.Reprompt.OutputSpeech.Text = "Please repeat your last question.";
-            response.Response.Card = null;
-
-            return response;
+                return ProcessHelpIntent(request, response);
+            }
+            else
+            {
+                return ProcessRepeatIntent(request, response);
+            }
         }
 
-        private AlexaResponse ProcessYesIntent(AlexaRequest request)
+        private AlexaResponse ProcessYesIntent(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse();
-            response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
-            string msg = string.Empty;
 
             response.Response.ShouldEndSession = true;
             response.Response.OutputSpeech.Text = "Thank you";
             response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
-            response.Response.Reprompt = null;
 
             return response;
         }
 
 
-        private AlexaResponse ProcessNoIntent(AlexaRequest request)
+        private AlexaResponse ProcessNoIntent(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse();
             string content = "";
-
-            response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
 
             content = "OK, thanks for listening.";
 
@@ -230,12 +219,9 @@ namespace EchoTemplate.Controllers
             return response;
         }
 
-        private AlexaResponse ProcessThanksIntent(AlexaRequest request)
+        private AlexaResponse ProcessThanksIntent(AlexaRequest request, AlexaResponse response)
         {
-            var response = new AlexaResponse();
             var content = "Have a great day!";
-
-            response.SessionAttributes.SkillAttributes = request.Session.Attributes.SkillAttributes;
 
             response.Response.ShouldEndSession = true;
             response.Response.OutputSpeech.Text = content;
@@ -245,9 +231,12 @@ namespace EchoTemplate.Controllers
         }
 
 
-        private  AlexaResponse SessionEndedRequest()
+        private  AlexaResponse SessionEndedRequest(AlexaRequest request, AlexaResponse response)
         {
-            return null;
+            response.Response.OutputSpeech.Text = "Have a great day gorgeous!";
+            response.Response.ShouldEndSession = true;
+
+            return response;
         }
 
         #endregion :   Alexa Type Handlers   :
