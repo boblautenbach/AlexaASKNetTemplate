@@ -7,5 +7,7 @@ Go to the folder AlexaASKNetTemplate/EchoTemplate/VSIX Template/ and run the VSI
 It will install a new template (VS 2015) called EchoTemplate. (you may need to restart VS)
 Create a (File=>New) project from the Echo Template
 
+You may need to open the PM Console and run update-package -reinstall to update the packages.
+
 Enjoy and please contribute to the base project.
 
