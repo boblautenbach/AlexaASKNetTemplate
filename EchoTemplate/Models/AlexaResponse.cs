@@ -3,6 +3,8 @@ using System.Collections.Generic;
 
 namespace EWCAlexa.Model
 {
+
+
     [JsonObject]
     public class AlexaResponse
     {
@@ -108,10 +110,24 @@ namespace EWCAlexa.Model
         [JsonProperty("content")]
         public string Content { get; set; }
 
+        [JsonProperty("image")]
+        public Image Image { get; set; }
+
         public Card()
         {
             Type = "Simple";
+            Image = new Image();
         }
+    }
+
+    [JsonObject("image")]
+    public class Image
+    {
+        [JsonProperty("smallImageUrl")]
+        public string SmallImageUrl { get; set; }
+
+        [JsonProperty("largeImageUrl")]
+        public string LargeImageUrl { get; set; }
     }
 
     [JsonObject("reprompt")]

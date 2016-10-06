@@ -1,16 +1,12 @@
 ﻿using System;
-using System.Linq;
 using System.Net;
 using System.Net.Http;
-using System.Security.Cryptography;
-using System.Security.Cryptography.X509Certificates;
-using System.Text;
-using System.Threading;
 using System.Threading.Tasks;
-using System.Web;
 using System.Web.Http;
 using EWCAlexa.Model;
 using EchoTemplate.Filters;
+using System.Runtime.CompilerServices;
+using EchoTemplate.Helpers;
 
 namespace EchoTemplate.Controllers
 {
@@ -20,26 +16,47 @@ namespace EchoTemplate.Controllers
     {
         #region :   Fields   :
         private const double TimeStampTolerance = 150;
-        private const string AppId = "<App_ID>";
+        private const int DATE_MAX_IN_DAYS = 60; //example of timeframe you might to check for
+        private const int CacheExpireMinutes = 5;
+
+        //Using custom object to manage 
+        RedisCacheManager.IRedisManager _cache;
+
         #endregion
+
+        #region : Notes : 
+
+
+        #endregion : Notes :
+
+        #region : Redis :
+        //Using cache for persiting important, yet non-permanent session related data
+        //Exmaples of getting and setting. complex objects can be used as well
+        //_cache.Set<string>("key", "value", CacheExpiry);
+        //_cache.Get<string>("key");
+        public DateTime CacheExpiry {
+            get
+            {
+                return DateTime.Now.AddMinutes(CacheExpireMinutes);
+            }
+        }
+
+        #endregion : Redis :
 
         #region : Helpers :
 
         //use this within each method of controller to trap errors
-        private async Task<AlexaResponse> ThrowSafeException(Exception exception, string methodName)
+        private async Task<AlexaResponse> ThrowSafeException(Exception exception, AlexaResponse response, [CallerMemberName] string methodName = "")
         {
-            var response = new AlexaResponse();
-
-            var content = @"We encountered some trouble, but don't worry, we have our team looking into it now.  We apologize for the
-                            inconvenience, we should have this fixed shortly. Please try again later.";
+            var content = @"We encountered some trouble, but don't worry, we have our team looking into it now.  We apologize for the inconvenience, we should have this fixed shortly. Please try again later.";
 
             response.Response.OutputSpeech.Text = content;
             response.Response.ShouldEndSession = true;
 
             try
             {
-                //perhaps log to loggly or email to developer/support with user request info
-            }
+
+            }            
             catch (Exception ex)
             {
                 //TODO
@@ -51,13 +68,14 @@ namespace EchoTemplate.Controllers
         #endregion : Helpers :
         public AlexaController()
         {
+            _cache = new RedisCacheManager.CacheManager(new RedisCacheManager.StackExchangeCacher(AppSettings.RedisCache));
         }
 
         #region :   Main-End-Points   :
         [HttpPost, Route("main")]
         public async Task<AlexaResponse> Main(AlexaRequest alexaRequest)
         {
-            AlexaResponse alexaResponse = new AlexaResponse();
+            AlexaResponse response = new AlexaResponse();
 
             try
             {
@@ -66,60 +84,157 @@ namespace EchoTemplate.Controllers
                 if (totalSeconds >= TimeStampTolerance)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
-                if (alexaRequest.Session.Application.ApplicationId != AppId)
+                if (alexaRequest.Session.Application.ApplicationId != AppSettings.AmazonAppId)
                     throw new HttpResponseException(new HttpResponseMessage(HttpStatusCode.BadRequest));
 
-
-                alexaResponse.SessionAttributes.SkillAttributes = alexaRequest.Session.Attributes.SkillAttributes;
+                response.SessionAttributes.SkillAttributes = alexaRequest.Session.Attributes.SkillAttributes;
 
                 switch (alexaRequest.Request.Type)
                 {
                     case "LaunchRequest":
-                        alexaResponse = LaunchRequest(alexaRequest, alexaResponse);
+                        response = LaunchRequest(alexaRequest, response);
                         break;
                     case "IntentRequest":
-                        alexaResponse = await IntentRequest(alexaRequest, alexaResponse);
+                        response = await IntentRequest(alexaRequest, response);
                         break;
                     case "SessionEndedRequest":
-                        alexaResponse = SessionEndedRequest(alexaRequest, alexaResponse);
+                        response = SessionEndedRequest(alexaRequest, response);
                         break;
                 }
 
                 //set value for repeat intent
-                alexaResponse.SessionAttributes.SkillAttributes.OutputSpeech = alexaResponse.Response.OutputSpeech;
+                response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
             }
             catch (Exception ex)
             {
-                return await ThrowSafeException(ex, System.Reflection.MethodBase.GetCurrentMethod().Name);
+                return await ThrowSafeException(ex, response);
             }
 
-            return alexaResponse;
+            return response;
         }
 
         #endregion :   Main-End-Points   :
 
         #region :   Alexa Type Handlers   :
-        private AlexaResponse LaunchRequest(AlexaRequest request, AlexaResponse response)
+
+        //Example of Amazon.Time Intent
+        private async Task<AlexaResponse> ProcessTimeIntent(AlexaRequest request, AlexaResponse response)
         {
             var content = "";
-
             var reprompt = "";
+            bool isValid = false;
 
-            response.Response.OutputSpeech.Text = content;
-            response.Response.ShouldEndSession = false;
-            response.Response.Reprompt.OutputSpeech.Text = reprompt;
+            try
+            {
+                if (request.Request.Intent != null && request.Request.Intent.Slots != null)
+                {
+                    var slot = request.Request.Intent.Slots;
+
+                    string result = "";
+
+                    if (slot["Time"] != null)
+                    {
+                        result = (String)slot["Time"].value;
+
+                        isValid = true;
+
+                        var fixedTime = Convert.ToDateTime(result).ToString("hh:mm");
+
+                        content = "";
+                        reprompt = content;
+                    }
+                }
+
+                if (!isValid)
+                {
+                    content = "I didn't understand your last response.";
+                    reprompt = @"";
+                }
+
+                response.Response.ShouldEndSession = false;
+                response.Response.OutputSpeech.Text = content;
+                response.Response.Reprompt.OutputSpeech.Text = reprompt;
+            }
+            catch (Exception ex)
+            {
+
+                if (ex.Message.Contains("String was not recognized as a valid DateTime"))
+                {
+                    return ProcessRepeatIntent(request, response);
+                }
+                return await ThrowSafeException(ex, response);
+            }
 
             return response;
         }
 
-        private  AlexaResponse ProcessHelpIntent(AlexaRequest request, AlexaResponse response)
+        //Example of Amazon.Date Intent
+        private async Task<AlexaResponse> ProcessDateIntent(AlexaRequest request, AlexaResponse response)
         {
+
             var content = "";
+            string theDate = "";
+            bool isValid = false;
 
-            var cardContent = content;
+            try
+            {
+                if (request.Request.Intent != null && request.Request.Intent.Slots != null)
+                {
+                    var slot = request.Request.Intent.Slots;
 
-            response.Response.OutputSpeech.Text = content;
-            response.Response.Reprompt.OutputSpeech.Text = "Have a great day!";
+                    if (slot["Date"] != null)
+                    {
+                        theDate = (String)slot["Date"].value;
+
+                        var formattedDate = Convert.ToDateTime(theDate);
+
+                        if (formattedDate > DateTime.Today.AddDays(DATE_MAX_IN_DAYS))
+                        {
+                            content = "Sorry that date was over 60 days from now.  You can say things like: July 26th, or next Tuesday, or any day before " + DateTime.Today.AddDays(DATE_MAX_IN_DAYS).ToShortDateString() + ".";
+                            response.Response.ShouldEndSession = false;
+                            response.Response.Reprompt.OutputSpeech.Text = content;
+                            response.Response.OutputSpeech.Text = content;
+                            return response;
+                        }
+                        else
+                        {
+                            content = @"";
+                            isValid = true;
+                        }
+                    }
+                }
+
+                if (!isValid)
+                {
+                    return ProcessRepeatIntent(request, response);
+                }
+
+                response.Response.Reprompt.OutputSpeech.Text = content;
+                response.Response.ShouldEndSession = false;
+                response.Response.OutputSpeech.Text = content;
+            }
+            catch (Exception ex)
+            {
+                if (ex.Message.Contains("String was not recognized as a valid DateTime"))
+                {
+                    return ProcessRepeatIntent(request, response);
+                }
+                return await ThrowSafeException(ex, response);
+            }
+
+            return response;
+        }
+
+        private AlexaResponse LaunchRequest(AlexaRequest request, AlexaResponse response)
+        {
+            return ProcessHelpIntent(request, response);
+        }
+
+        private AlexaResponse ProcessHelpIntent(AlexaRequest request, AlexaResponse response)
+        {
+
+            response.Response.OutputSpeech.Text = @"";
+            response.Response.ShouldEndSession = true;
 
             return response;
         }
@@ -145,15 +260,21 @@ namespace EchoTemplate.Controllers
                     response = ProcessThanksIntent(request, response);
                     break;
                 case "AMAZON.NoIntent":
-                    response = ProcessNoIntent(request, response);
+                    response = await ProcessNoIntent(request, response);
                     shouldSetLastIntent = false;
                     break;
                 case "AMAZON.YesIntent":
-                    response = ProcessYesIntent(request, response);
+                    response = await ProcessYesIntent(request, response);
                     shouldSetLastIntent = false;
                     break;
                 case "UnknownIntent":
                     response = ProcessUnknownIntent(request,response);
+                    break;
+                case "AMAZON.Date":
+                    response = await ProcessDateIntent(request, response);
+                    break;
+                case "AMAZON.Time":
+                    response = await ProcessTimeIntent(request, response);
                     break;
                 case "AMAZON.CancelIntent":
                     response = ProcessCancelIntent(request, response);
@@ -176,11 +297,9 @@ namespace EchoTemplate.Controllers
 
         private AlexaResponse ProcessRepeatIntent(AlexaRequest request, AlexaResponse response)
         {
-
             response.Response.OutputSpeech = request.Session.Attributes.SkillAttributes.OutputSpeech;
             return response;
         }
-
 
         private AlexaResponse ProcessUnknownIntent(AlexaRequest request, AlexaResponse response)
         {
@@ -194,28 +313,39 @@ namespace EchoTemplate.Controllers
             }
         }
 
-        private AlexaResponse ProcessYesIntent(AlexaRequest request, AlexaResponse response)
+        private async Task<AlexaResponse> ProcessYesIntent(AlexaRequest request, AlexaResponse response)
         {
-
-            response.Response.ShouldEndSession = true;
-            response.Response.OutputSpeech.Text = "Thank you";
-            response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
-
+            try
+            {
+                response.Response.ShouldEndSession = true;
+                response.Response.OutputSpeech.Text = "Thank you";
+                response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
+            }
+            catch (Exception ex)
+            {
+                return await ThrowSafeException(ex, response);
+            }
             return response;
         }
 
 
-        private AlexaResponse ProcessNoIntent(AlexaRequest request, AlexaResponse response)
+        private async Task<AlexaResponse> ProcessNoIntent(AlexaRequest request, AlexaResponse response)
         {
             string content = "";
 
             content = "OK, thanks for listening.";
 
-            response.Response.ShouldEndSession = true;
-            response.Response.OutputSpeech.Text = content;
-            response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
-            response.Response.Reprompt = null;
-
+            try
+            {
+                response.Response.ShouldEndSession = true;
+                response.Response.OutputSpeech.Text = content;
+                response.SessionAttributes.SkillAttributes.OutputSpeech = response.Response.OutputSpeech;
+                response.Response.Reprompt = null;
+            }
+            catch (Exception ex)
+            {
+                return await ThrowSafeException(ex, response);
+            }
             return response;
         }
 
